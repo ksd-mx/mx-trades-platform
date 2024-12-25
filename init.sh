@@ -26,8 +26,7 @@ k3d cluster create mx-trades \
     --k3s-arg "--disable=traefik@server:0" \
     --servers-memory "2g" \
     --agents-memory "4g" \
-    --registry-create mx-trades-registry:0.0.0.0:5555 \
-    --timeout 5m
+    --registry-create mx-trades-registry:0.0.0.0:5555
 
 # Explicitly switch context
 echo "🔄 Switching kubectl context to k3d-mx-trades..."
@@ -61,8 +60,7 @@ helm repo update
 # Install Istio (minimal profile for local development)
 echo "🕸️ Installing Istio..."
 helm install istio-base istio/base \
-    --namespace istio-system \
-    --wait --timeout=300s
+    --namespace istio-system 
 
 helm install istiod istio/istiod \
     --namespace istio-system \
@@ -71,26 +69,35 @@ helm install istiod istio/istiod \
     --set pilot.resources.limits.cpu=200m \
     --set pilot.resources.limits.memory=256Mi \
     --set global.proxy.resources.requests.cpu=10m \
-    --set global.proxy.resources.requests.memory=32Mi \
-    --wait --timeout=300s
+    --set global.proxy.resources.requests.memory=32Mi 
 
+# Install Elasticsearch with explicit network settings
 echo "📝 Installing Elasticsearch..."
 helm install elasticsearch elastic/elasticsearch \
     --namespace logging \
     --set replicas=1 \
     --set minimumMasterNodes=1 \
     --set persistence.enabled=false \
-    --wait --timeout=600s
+    --set service.type=ClusterIP \
+    --set service.publish=true \
+    --set network.host="0.0.0.0" \
+    --set discovery.type=single-node 
 
-# Install Kibana with stable configuration
+# Wait for Elasticsearch to be fully ready
+echo "⏳ Waiting for Elasticsearch to be ready..."
+kubectl wait --for=condition=ready pod -l app=elasticsearch-master -n logging --timeout=300s
+
 echo "📊 Installing Kibana..."
-helm install kibana-bkp elastic/kibana \
+helm install kibana elastic/kibana \
     --namespace logging \
-    --version 7.17.3 \
-    --set resources.requests.cpu=100m \
-    --set resources.requests.memory=256Mi \
-    --set resources.limits.memory=512Mi \
-    --wait --timeout=300s
+    --set "elasticsearch.hosts[0]=http://elasticsearch-master:9200" \
+    --set "elasticsearch.protocol=http" \
+    --set "server.host=0.0.0.0" \
+    --set "resources.requests.cpu=100m" \
+    --set "resources.requests.memory=512Mi" \
+    --set "resources.limits.cpu=500m" \
+    --set "resources.limits.memory=1Gi" \
+    --set "healthCheckDelay=30" 
 
 # Install Prometheus stack (minimal config for local dev)
 echo "📊 Installing Prometheus and Grafana..."
@@ -103,7 +110,7 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
     --set grafana.resources.requests.memory=128Mi \
     --set grafana.adminPassword=admin \
     --set grafana.service.type=ClusterIP \
-    --set prometheus.service.type=ClusterIP \
+    --set prometheus.service.type=ClusterIP 
 
 # Install Kafka (single node for local development)
 echo "📫 Installing Kafka..."
@@ -113,7 +120,7 @@ helm install kafka bitnami/kafka \
     --set heapOpts="-Xmx512m -Xms512m" \
     --set resources.requests.memory=512Mi \
     --set resources.limits.memory=1Gi \
-    --set zookeeper.heapSize=256 \
+    --set zookeeper.heapSize=256 
 
 # Install Redis (single node)
 echo "📦 Installing Redis..."
@@ -123,7 +130,7 @@ helm install redis bitnami/redis \
     --set auth.enabled=true \
     --set auth.password=development-password \
     --set master.resources.requests.cpu=100m \
-    --set master.resources.requests.memory=128Mi \
+    --set master.resources.requests.memory=128Mi 
 
 # Install MariaDB (single node)
 echo "💾 Installing MariaDB..."
@@ -133,7 +140,7 @@ helm install mariadb bitnami/mariadb \
     --set auth.rootPassword=development-password \
     --set auth.database=violations \
     --set primary.resources.requests.cpu=100m \
-    --set primary.resources.requests.memory=256Mi \
+    --set primary.resources.requests.memory=256Mi 
 
 echo "✅ Cluster setup complete!"
 
