@@ -1,0 +1,39 @@
+replicaCount: 1
+
+image:
+  repository: mx-trades-registry:5555/test-service
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 8000
+
+# Explicitly configure probes
+probes:
+  liveness:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    path: /health
+  readiness:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    path: /health
+
+# Container configuration
+containerConfig:
+  command: ["uvicorn"]
+  args: ["main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "debug"]
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
